@@ -1,0 +1,662 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Container, 
+  Grid, 
+  Paper, 
+  Typography, 
+  Box, 
+  Card, 
+  CardContent, 
+  CardHeader,
+  Divider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress,
+  Tabs,
+  Tab,
+  Chip,
+  LinearProgress,
+  IconButton,
+  Avatar,
+  Button,
+} from '@mui/material';
+import BudgetActualComparison from '../components/dashboard/BudgetActualComparison';
+import ReservationInfo from '../components/dashboard/ReservationInfo';
+import ShiftAndTaskInfo from '../components/dashboard/ShiftAndTaskInfo';
+import { Line, Bar } from 'react-chartjs-2';
+import 'chart.js/auto';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import GroupIcon from '@mui/icons-material/Group';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
+import EventNoteIcon from '@mui/icons-material/EventNote';
+import WarningIcon from '@mui/icons-material/Warning';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+
+const Dashboard = () => {
+  const [summaryData, setSummaryData] = useState(null);
+  const [todaySales, setTodaySales] = useState(0);
+  const [monthlySales, setMonthlySales] = useState(0);
+  const [yearlySales, setYearlySales] = useState(0);
+  const [targetPeriod, setTargetPeriod] = useState('today');
+  const [loading, setLoading] = useState(true);
+  const [weeklySales, setWeeklySales] = useState([]);
+  const [settings, setSettings] = useState(null);
+  const [weather, setWeather] = useState(null);
+  const [weatherIcon, setWeatherIcon] = useState(null);
+  const [budgetActual, setBudgetActual] = useState(null);
+  const [periodData, setPeriodData] = useState({
+    today: { sales: 0, budget: 0, lastYear: 0, label: '本日' },
+    week: { sales: 0, budget: 0, lastYear: 0, label: '今週' },
+    month: { sales: 0, budget: 0, lastYear: 0, label: '今月' },
+    year: { sales: 0, budget: 0, lastYear: 0, label: '今年' },
+  });
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [trendData, setTrendData] = useState(null);
+  const [reservationStats, setReservationStats] = useState({
+    totalReservations: 0,
+    completedReservations: 0,
+    pendingReservations: 0,
+    cancelledReservations: 0,
+    reservationsByHour: {}
+  });
+
+  // モックデータ - 実際のシステムではAPIから取得
+  const todayShifts = [
+    { id: 1, staffName: '山田 太郎', position: 'キッチンスタッフ', time: '10:00 - 18:00' },
+    { id: 2, staffName: '佐藤 花子', position: 'ホールスタッフ', time: '17:00 - 22:00' },
+    { id: 3, staffName: '鈴木 一郎', position: 'マネージャー', time: '9:00 - 18:00' }
+  ];
+
+  const tasksForToday = [
+    { id: 1, title: '仕入れ発注確認', assignee: '鈴木 一郎', status: 'completed', priority: 'high' },
+    { id: 2, title: '新メニュー試作', assignee: '山田 太郎', status: 'inProgress', priority: 'medium' },
+    { id: 3, title: 'テーブル配置変更', assignee: '佐藤 花子', status: 'pending', priority: 'low' }
+  ];
+
+  const inventoryAlerts = [
+    { id: 1, itemName: '米', currentStock: 5, unit: 'kg', daysLeft: 1, level: 'critical' },
+    { id: 2, itemName: '牛肉', currentStock: 2, unit: 'kg', daysLeft: 2, level: 'warning' },
+    { id: 3, itemName: 'ビール', currentStock: 12, unit: '本', daysLeft: 3, level: 'normal' }
+  ];
+
+  // ダッシュボードデータの取得
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        // 実際のシステムではAPIからデータを取得
+        // 以下はモックデータ
+        const mockData = {
+          todaySales: 154200,
+          weeklySales: 758200,
+          monthlySales: 3650000,
+          yearlySales: 42800000,
+          todayBudget: 150000,
+          weeklyBudget: 800000,
+          monthlyBudget: 4000000,
+          yearlyBudget: 45000000,
+          lastYearSameDaySales: 142500,
+          lastYearSameWeekSales: 720000,
+          lastMonthSamePeriodSales: 3450000,
+          lastYearSamePeriodSales: 40200000,
+          dailySales: [128000, 145000, 132000, 148000, 154200, 0, 0]
+        };
+
+        // カテゴリー別の予算と実績データ
+        const mockBudgetActual = {
+          categories: [
+            { name: '食事', budget: 2200000, actual: 1980000 },
+            { name: 'ドリンク', budget: 1000000, actual: 1120000 },
+            { name: 'デザート', budget: 500000, actual: 385000 },
+            { name: 'テイクアウト', budget: 300000, actual: 165000 }
+          ],
+          total: {
+            budget: 4000000,
+            actual: 3650000
+          }
+        };
+
+        // 予約データ
+        const mockReservationStats = {
+          totalReservations: 18,
+          completedReservations: 5,
+          pendingReservations: 12,
+          cancelledReservations: 1,
+          reservationsByHour: {
+            '12': 3,
+            '13': 4,
+            '18': 8,
+            '19': 3
+          }
+        };
+
+        setSummaryData(mockData);
+        setTodaySales(mockData.todaySales);
+        setMonthlySales(mockData.monthlySales);
+        setYearlySales(mockData.yearlySales);
+        setWeeklySales(mockData.dailySales);
+        setBudgetActual(mockBudgetActual);
+        setReservationStats(mockReservationStats);
+
+        // 各期間のデータをセット
+        setPeriodData({
+          today: { 
+            sales: mockData.todaySales, 
+            budget: mockData.todayBudget, 
+            lastYear: mockData.lastYearSameDaySales,
+            label: '本日'
+          },
+          week: { 
+            sales: mockData.weeklySales, 
+            budget: mockData.weeklyBudget, 
+            lastYear: mockData.lastYearSameWeekSales,
+            label: '今週'
+          },
+          month: { 
+            sales: mockData.monthlySales, 
+            budget: mockData.monthlyBudget, 
+            lastYear: mockData.lastMonthSamePeriodSales,
+            label: '今月'
+          },
+          year: { 
+            sales: mockData.yearlySales, 
+            budget: mockData.yearlyBudget, 
+            lastYear: mockData.lastYearSamePeriodSales,
+            label: '今年'
+          }
+        });
+
+        // 推移データのモック（実際はAPI呼び出し）
+        const mockTrendData = {
+          labels: ['今週', '先週'],
+          datasets: [
+            {
+              label: '実績',
+              data: [758200, 720000],
+              borderColor: '#4a76d6',
+              backgroundColor: 'rgba(74, 118, 214, 0.2)',
+              tension: 0.4
+            },
+            {
+              label: '目標',
+              data: [800000, 750000],
+              borderColor: '#f44336',
+              backgroundColor: 'rgba(244, 67, 54, 0.1)',
+              borderDash: [5, 5]
+            }
+          ]
+        };
+        setTrendData(mockTrendData);
+        
+        // 天気データのモック（実際はAPI呼び出し）
+        setWeather({
+          current: {
+            temp: 22,
+            condition: '晴れ'
+          }
+        });
+        setWeatherIcon('☀️');
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  // タブ切り替え処理
+  const handleTabChange = (event, newValue) => {
+    setSelectedTab(newValue);
+    switch(newValue) {
+      case 0:
+        setTargetPeriod('today');
+        break;
+      case 1:
+        setTargetPeriod('week');
+        break;
+      case 2:
+        setTargetPeriod('month');
+        break;
+      case 3:
+        setTargetPeriod('year');
+        break;
+      default:
+        setTargetPeriod('today');
+    }
+  };
+
+  // ステータスに応じた色を返す関数
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+      case 'done':
+      case 'success':
+        return 'success';
+      case 'inProgress':
+      case 'in_progress':
+      case 'warning':
+        return 'warning';
+      case 'pending':
+      case 'error':
+        return 'error';
+      default:
+        return 'info';
+    }
+  };
+
+  // ステータスに応じたテキストを返す関数
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed':
+      case 'done':
+        return '完了';
+      case 'inProgress':
+      case 'in_progress':
+        return '作業中';
+      case 'pending':
+        return '未着手';
+      default:
+        return status;
+    }
+  };
+
+  // 優先度に応じた色を返す関数
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high':
+        return '#f44336';
+      case 'medium':
+        return '#ff9800';
+      case 'low':
+        return '#4caf50';
+      default:
+        return '#757575';
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress size={60} thickness={4} />
+          <Typography variant="h6" sx={{ mt: 2 }}>
+            データを読み込み中...
+          </Typography>
+        </Box>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* 日付と時間表示 */}
+      <Paper 
+        elevation={1} 
+        sx={{ 
+          mb: 3, 
+          overflow: 'hidden',
+          borderRadius: 1
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          bgcolor: '#3f67bf', 
+          color: 'white',
+          p: 2
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <ScheduleIcon sx={{ mr: 1 }} />
+            <Typography variant="h6" sx={{ fontWeight: 500 }}>
+              ダッシュボード
+            </Typography>
+          </Box>
+          <Typography variant="subtitle1">
+            {new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+            {' '}
+            {new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+          </Typography>
+        </Box>
+
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            bgcolor: '#f5f7fa', 
+            border: '1px solid #e1e5eb', 
+            borderLeft: '4px solid #3f67bf',
+            borderRadius: 1,
+            p: 2,
+            mb: 2
+          }}>
+            <Typography variant="body1">
+              レストラン管理システムのダッシュボードでは、売上データ、予約状況、スタッフシフト、タスク管理などの情報をリアルタイムで確認できます。
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper 
+            elevation={1} 
+            sx={{
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              bgcolor: '#3f67bf', 
+              color: 'white',
+              p: 1.5
+            }}>
+              <TrendingUpIcon sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                本日の売上
+              </Typography>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2, color: '#3f67bf' }}>
+                ¥{todaySales.toLocaleString()}
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Chip 
+                  label={`予算比: ${Math.round((periodData.today.sales / periodData.today.budget) * 100)}%`} 
+                  size="small"
+                  sx={{ 
+                    bgcolor: periodData.today.sales >= periodData.today.budget ? '#e8f5e9' : '#fff8e1', 
+                    color: periodData.today.sales >= periodData.today.budget ? '#4caf50' : '#ff9800',
+                    fontWeight: 500
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', color: periodData.today.sales >= periodData.today.lastYear ? '#4caf50' : '#f44336' }}>
+                  {periodData.today.sales >= periodData.today.lastYear ? (
+                    <ArrowUpwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  ) : (
+                    <ArrowDownwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  )}
+                  <Typography variant="body2">
+                    {Math.abs(Math.round(((periodData.today.sales - periodData.today.lastYear) / periodData.today.lastYear) * 100))}% 前年比
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper 
+            elevation={1} 
+            sx={{
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              bgcolor: '#3f67bf', 
+              color: 'white',
+              p: 1.5
+            }}>
+              <BarChartIcon sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                今月の売上
+              </Typography>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2, color: '#3f67bf' }}>
+                ¥{monthlySales.toLocaleString()}
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Chip 
+                  label={`予算比: ${Math.round((periodData.month.sales / periodData.month.budget) * 100)}%`} 
+                  size="small"
+                  sx={{ 
+                    bgcolor: periodData.month.sales >= periodData.month.budget ? '#e8f5e9' : '#fff8e1', 
+                    color: periodData.month.sales >= periodData.month.budget ? '#4caf50' : '#ff9800',
+                    fontWeight: 500
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', color: periodData.month.sales >= periodData.month.lastYear ? '#4caf50' : '#f44336' }}>
+                  {periodData.month.sales >= periodData.month.lastYear ? (
+                    <ArrowUpwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  ) : (
+                    <ArrowDownwardIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  )}
+                  <Typography variant="body2">
+                    {Math.abs(Math.round(((periodData.month.sales - periodData.month.lastYear) / periodData.month.lastYear) * 100))}% 前年比
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper 
+            elevation={1} 
+            sx={{
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              bgcolor: '#3f67bf', 
+              color: 'white',
+              p: 1.5
+            }}>
+              <GroupIcon sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                来客数
+              </Typography>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2, color: '#3f67bf' }}>
+                {Math.round(todaySales / 3500)}組
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Chip 
+                  label="本日分" 
+                  size="small"
+                  sx={{ 
+                    bgcolor: '#e3eaff', 
+                    color: '#3f67bf',
+                    fontWeight: 500
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}>
+                  <Typography variant="body2">
+                    平均単価: ¥{(3500).toLocaleString()}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper 
+            elevation={1} 
+            sx={{
+              borderRadius: 1,
+              overflow: 'hidden'
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              bgcolor: '#3f67bf', 
+              color: 'white',
+              p: 1.5
+            }}>
+              <EventNoteIcon sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                予約数
+              </Typography>
+            </Box>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2, color: '#3f67bf' }}>
+                {reservationStats.totalReservations}件
+              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Chip 
+                  label="本日分" 
+                  size="small"
+                  sx={{ 
+                    bgcolor: '#e3eaff', 
+                    color: '#3f67bf',
+                    fontWeight: 500
+                  }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary' }}>
+                  <Typography variant="body2">
+                    完了: {reservationStats.completedReservations}件
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* タブボタングループ */}
+      <Paper sx={{ mb: 3, borderRadius: 1, overflow: 'hidden' }}>
+        <Tabs 
+          value={selectedTab} 
+          onChange={handleTabChange}
+          variant="fullWidth"
+          sx={{ 
+            bgcolor: '#3f67bf',
+            '& .MuiTab-root': { 
+              color: 'rgba(255,255,255,0.7)',
+              py: 2
+            },
+            '& .Mui-selected': { 
+              color: 'white',
+              fontWeight: 'bold'
+            },
+            '& .MuiTabs-indicator': { 
+              backgroundColor: 'white',
+              height: 3
+            }
+          }}
+        >
+          <Tab label="本日" />
+          <Tab label="今週" />
+          <Tab label="今月" />
+          <Tab label="今年" />
+        </Tabs>
+
+        <Box sx={{ p: 2 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, color: '#3f67bf', mb: 1 }}>
+                  {periodData[targetPeriod].label}の売上: ¥{periodData[targetPeriod].sales.toLocaleString()}
+                </Typography>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={Math.min(100, (periodData[targetPeriod].sales / periodData[targetPeriod].budget) * 100)} 
+                  sx={{ 
+                    height: 10, 
+                    borderRadius: 5,
+                    mb: 1,
+                    bgcolor: '#e3eaff',
+                    '& .MuiLinearProgress-bar': {
+                      bgcolor: '#3f67bf',
+                    }
+                  }}
+                />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    予算: ¥{periodData[targetPeriod].budget.toLocaleString()} 
+                    ({Math.round((periodData[targetPeriod].sales / periodData[targetPeriod].budget) * 100)}%)
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      display: 'flex', 
+                      alignItems: 'center',
+                      color: periodData[targetPeriod].sales >= periodData[targetPeriod].lastYear ? '#4caf50' : '#f44336'
+                    }}
+                  >
+                    前年比: 
+                    {periodData[targetPeriod].sales >= periodData[targetPeriod].lastYear ? (
+                      <ArrowUpwardIcon fontSize="small" sx={{ mx: 0.5 }} />
+                    ) : (
+                      <ArrowDownwardIcon fontSize="small" sx={{ mx: 0.5 }} />
+                    )}
+                    {Math.abs(Math.round(((periodData[targetPeriod].sales - periodData[targetPeriod].lastYear) / periodData[targetPeriod].lastYear) * 100))}%
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {trendData && (
+                <Card sx={{ borderRadius: 1, height: '100%', border: '1px solid #e1e5eb' }}>
+                  <Box sx={{ height: 250, p: 2 }}>
+                    <Line 
+                      data={trendData} 
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'top',
+                          },
+                        },
+                        scales: {
+                          y: {
+                            beginAtZero: false
+                          }
+                        }
+                      }} 
+                    />
+                  </Box>
+                </Card>
+              )}
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <BudgetActualComparison budgetActual={budgetActual} />
+            </Grid>
+          </Grid>
+        </Box>
+      </Paper>
+      
+      {/* 予約情報 */}
+      <ReservationInfo reservationStats={reservationStats} />
+      
+      {/* シフトとタスク情報 */}
+      <ShiftAndTaskInfo 
+        todayShifts={todayShifts}
+        tasksForToday={tasksForToday}
+        inventoryAlerts={inventoryAlerts}
+        getStatusColor={getStatusColor}
+        getStatusText={getStatusText}
+        getPriorityColor={getPriorityColor}
+      />
+    </Container>
+  );
+};
+
+export default Dashboard;

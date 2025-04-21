@@ -1,0 +1,1192 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  Container, 
+  Grid, 
+  Typography, 
+  Box, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem, 
+  CircularProgress,
+  Alert,
+  Divider
+} from '@mui/material';
+import { 
+  CalendarMonth as CalendarIcon,
+  Task as TaskIcon,
+  Inventory as InventoryIcon,
+  AssignmentTurnedIn as AssignmentIcon,
+  Person as PersonIcon,
+  BarChart as BarChartIcon,
+  ShowChart as ShowChartIcon,
+  CompareArrows as CompareArrowsIcon,
+  AccountBalance as AccountBalanceIcon,
+  Paid as PaidIcon,
+  Thermostat as ThermostatIcon,
+  WbSunny as WbSunnyIcon,
+  Cloud as CloudIcon,
+  Opacity as OpacityIcon,
+  DateRange as DateRangeIcon,
+  EventAvailable as EventAvailableIcon,
+  AccessTime as AccessTimeIcon,
+  Group as GroupIcon,
+  Timer as TimerIcon,
+  ArrowUpward as ArrowUpwardIcon,
+  ArrowDownward as ArrowDownwardIcon,
+  Remove as RemoveIcon,
+  ArrowForward as ArrowForwardIcon,
+  Refresh as RefreshIcon
+} from '@mui/icons-material';
+import { Line, Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { dashboardApi, mockData } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useReservation } from '../contexts/ReservationContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { getWeatherByAddress } from '../services/weatherService';
+
+// Chart.jsの登録
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
+
+const Dashboard = () => {
+  const theme = useTheme();
+  const { currentUser } = useAuth();
+  const { getTodayReservationStats } = useReservation();
+  const { settings } = useSettings();
+
+  const [summaryData, setSummaryData] = useState(null);
+  const [todaySales, setTodaySales] = useState(0);
+  const [customerCount, setCustomerCount] = useState(0);
+  const [inventoryAlerts, setInventoryAlerts] = useState([]);
+  const [todayShifts, setTodayShifts] = useState([]);
+  const [todayTasks, setTodayTasks] = useState([]);
+  const [weeklySalesData, setWeeklySalesData] = useState([]);
+  const [budgetActual, setBudgetActual] = useState(null); // 予実データ
+  const [previousYearData, setPreviousYearData] = useState(null); // 前年同期比較データ
+  const [weatherInfo, setWeatherInfo] = useState({
+    condition: 'sunny',
+    temperature: 23,
+    humidity: 45,
+    description: '晴れ',
+    windSpeed: 2.5,
+    city: '東京',
+    icon: '01d',
+    date: new Date()
+  }); // 天気情報
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState(null);
+  const [reservationStats, setReservationStats] = useState({
+    totalReservations: 0,
+    pendingReservations: 0,
+    totalGuests: 0,
+    peakHour: '予約なし'
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // 実際のAPIが実装されるまでモックデータを使用
+        // 実際のアプリでは各コンテキストからデータを取得する
+        
+        // モックデータを使用
+        const summary = mockData?.dashboardSummary || {};
+        const weekSales = mockData?.salesData?.weekly || [];
+        
+        // 在庫アラートのモックデータ
+        const alerts = [
+          { id: 1, name: '米', quantity: 5, unit: 'kg', threshold: 10 },
+          { id: 2, name: 'マグロ', quantity: 2, unit: 'kg', threshold: 5 },
+          { id: 3, name: '醤油', quantity: 1, unit: 'L', threshold: 3 },
+          { id: 4, name: '日本酒', quantity: 4, unit: '本', threshold: 8 },
+        ];
+        
+        // 予実状況のモックデータ
+        const mockBudgetActual = {
+          todaySales: {
+            budget: 350000,
+            actual: todaySales || 320000,
+            diff: ((todaySales || 320000) - 350000),
+            diffPercent: Math.round(((todaySales || 320000) / 350000 * 100) - 100)
+          },
+          monthToDate: {
+            budget: 5600000,
+            actual: 5350000,
+            diff: (5350000 - 5600000),
+            diffPercent: Math.round((5350000 / 5600000 * 100) - 100)
+          },
+          yearToDate: {
+            budget: 24500000,
+            actual: 25100000,
+            diff: (25100000 - 24500000),
+            diffPercent: Math.round((25100000 / 24500000 * 100) - 100)
+          },
+          categories: [
+            { name: '食材原価', budget: 1200000, actual: 1150000 },
+            { name: '人件費', budget: 2100000, actual: 2050000 },
+            { name: '家賃', budget: 800000, actual: 800000 },
+            { name: '光熟費', budget: 350000, actual: 310000 },
+            { name: '購入経費', budget: 450000, actual: 470000 }
+          ]
+        };
+        
+        // 本日のシフトモックデータ
+        const mockShifts = [
+          { id: 1, staffName: '山本 拓也', position: 'ホールスタッフ', time: '9:00-17:00' },
+          { id: 2, staffName: '鈴木 あかり', position: 'ホールスタッフ', time: '17:00-22:00' },
+          { id: 3, staffName: '佐藤 雄大', position: 'キッチン', time: '8:00-16:00' },
+          { id: 4, staffName: '田中 充', position: 'キッチン', time: '16:00-22:00' },
+          { id: 5, staffName: '鈴木 雄二', position: 'マネージャー', time: '10:00-19:00' },
+        ];
+        
+        // 本日のタスクモックデータ
+        const mockTasks = [
+          { id: 1, title: '仕入れ食材の検品', assignedTo: '佐藤 雄大', priority: 'high', status: 'completed' },
+          { id: 2, title: '店内清掃', assignedTo: '山本 拓也', priority: 'medium', status: 'in-progress' },
+          { id: 3, title: '予約確認の電話', assignedTo: '鈴木 あかり', priority: 'high', status: 'pending' },
+          { id: 4, title: 'ワイン発注', assignedTo: '鈴木 雄二', priority: 'medium', status: 'pending' },
+        ];
+        
+        // データ設定 - 安全にデフォルト値を設定
+        setTodaySales(summary?.dailySales || 0);
+        setCustomerCount(summary?.dailyCustomers || 45); // 本日の客数モック
+        setInventoryAlerts(Array.isArray(alerts) ? alerts : []);
+        setTodayShifts(Array.isArray(mockShifts) ? mockShifts : []);
+        setTodayTasks(Array.isArray(mockTasks) ? mockTasks : []);
+        setWeeklySalesData(Array.isArray(weekSales) ? weekSales : []);
+        setSummaryData(summary || {});
+        setBudgetActual(mockBudgetActual);
+        
+        // 前年同期データのモックデータを設定
+        const mockPreviousYearData = {
+          today: {
+            sales: 85000, // 前年の同日の売上
+            percentChange: 12.5 // 前年同日比（パーセント）
+          },
+          month: {
+            sales: 2450000, // 前年の同月の売上
+            percentChange: 8.7 // 前年同月比（パーセント）
+          },
+          year: {
+            sales: 28500000, // 前年の同時点の年間売上
+            percentChange: 5.2 // 前年同時点比（パーセント）
+          }
+        };
+        
+        setPreviousYearData(mockPreviousYearData);
+        
+        // 実際のアプリでは、この部分で各管理ページのデータを取得して同期する
+        // 例：orderAPI.getRecentOrders(), financeAPI.getSalesData() など
+        // ここでは開発用のモックデータを使用していて同期されていない
+      } catch (err) {
+        console.error('ダッシュボードデータの取得エラー:', err);
+        setError('データの取得中にエラーが発生しました。');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const fetchReservationData = () => {
+      try {
+        const stats = getTodayReservationStats();
+        setReservationStats(stats);
+      } catch (error) {
+        console.error('予約データの取得エラー:', error);
+      }
+    };
+    
+    fetchDashboardData();
+    fetchReservationData();
+  }, [getTodayReservationStats]);
+  
+  // 店舗住所から天気情報を取得する関数
+  const fetchWeatherData = async () => {
+    if (!settings?.storeInfo?.address) {
+      console.error('店舗住所が設定されていません');
+      return;
+    }
+    
+    setWeatherLoading(true);
+    setWeatherError(null);
+    
+    try {
+      const address = settings.storeInfo.address;
+      console.log('店舗住所から天気情報を取得します:', address);
+      
+      const weatherData = await getWeatherByAddress(address);
+      console.log('取得した天気情報:', weatherData);
+      
+      // 天気情報をステートに設定
+      setWeatherInfo({
+        ...weatherData,
+        date: new Date() // 現在時刻を使用
+      });
+    } catch (err) {
+      console.error('天気情報の取得エラー:', err);
+      setWeatherError('天気情報を取得できませんでした');
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+  
+  // 設定が読み込まれたら天気情報を取得
+  useEffect(() => {
+    if (settings?.storeInfo?.address) {
+      fetchWeatherData();
+    }
+  }, [settings?.storeInfo?.address]);
+
+  // 週間売上グラフのオプション
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += '¥' + context.parsed.y.toLocaleString();
+            }
+            return label;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: false,
+        ticks: {
+          callback: (value) => `¥${value.toLocaleString()}`,
+        },
+      },
+    },
+  };
+
+  // 週間売上グラフのデータ（予算データも追加）
+  const chartData = {
+    labels: Array.isArray(weeklySalesData) ? weeklySalesData.map(item => item?.date || '') : [],
+    datasets: [
+      {
+        label: '実績売上',
+        data: Array.isArray(weeklySalesData) ? weeklySalesData.map(item => item?.sales || 0) : [],
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        tension: 0.3,
+      },
+      {
+        label: '予算売上',
+        data: Array.isArray(weeklySalesData) ? weeklySalesData.map(item => (item?.sales || 0) * 1.1) : [], // モデル用に実績の110%として計算
+        borderColor: 'rgb(53, 162, 235)',
+        backgroundColor: 'rgba(53, 162, 235, 0.5)',
+        borderDash: [5, 5],
+        tension: 0.3,
+      },
+    ],
+  };
+  
+  // タスクの優先度による色を取得
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high':
+        return 'error';
+      case 'medium':
+        return 'warning';
+      case 'low':
+        return 'info';
+      default:
+        return 'default';
+    }
+  };
+  
+  // ステータスによる色を取得(タスクや注文など共通で使用)
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'in-progress':
+      case 'in_progress':
+        return 'primary';
+      case 'pending':
+      case 'ready':
+        return 'warning';
+      case 'cancelled':
+        return 'error';
+      default:
+        return 'default';
+    }
+  };
+
+  // ステータスのテキスト表示を取得
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'completed':
+        return '完了';
+      case 'in_progress':
+      case 'in-progress':
+        return '進行中';
+      case 'ready':
+      case 'pending':
+        return '未着手';
+      case 'cancelled':
+        return 'キャンセル';
+      default:
+        return status;
+    }
+  };
+
+  // ローディング状態の表示
+  if (loading) {
+    return (
+      <Container sx={{ py: 4, textAlign: 'center' }}>
+        <Typography variant="h6" gutterBottom>
+          データを読み込んでいます...
+        </Typography>
+      </Container>
+    );
+  }
+
+  // エラーの表示
+  if (error) {
+    return (
+      <Container sx={{ py: 4, textAlign: 'center' }}>
+        <Typography color="error">{error}</Typography>
+        <Button variant="contained" onClick={() => window.location.reload()}>
+          再読み込み
+        </Button>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold' }}>
+        管理システムダッシュボード
+      </Typography>
+      
+      {/* 天気と日付情報 - 最上部に配置 */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <DateRangeIcon color="primary" sx={{ mr: 1, fontSize: 28 }} />
+                <Typography variant="h6" fontWeight="medium">
+                  {weatherInfo.date.getFullYear()}年{weatherInfo.date.getMonth() + 1}月{weatherInfo.date.getDate()}日 
+                  {['日', '月', '火', '水', '木', '金', '土'][weatherInfo.date.getDay()]}曜日
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <MuiTooltip title={settings?.storeInfo?.address || '住所が設定されていません'}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    bgcolor: 'primary.light', 
+                    color: 'white', 
+                    px: 2, 
+                    py: 1, 
+                    borderRadius: 2 
+                  }}>
+                    {weatherLoading ? (
+                      <CircularProgress size={20} sx={{ color: 'white', mr: 1 }} />
+                    ) : (
+                      <>
+                        {weatherInfo.condition === 'sunny' && <WbSunnyIcon sx={{ mr: 1 }} />}
+                        {weatherInfo.condition === 'cloudy' && <CloudIcon sx={{ mr: 1 }} />}
+                        {weatherInfo.condition === 'rainy' && <OpacityIcon sx={{ mr: 1 }} />}
+                      </>
+                    )}
+                    <Typography variant="body1" fontWeight="medium">
+                      {weatherInfo.city && `${weatherInfo.city} - `}
+                      {weatherInfo.description && `${weatherInfo.description} - `}
+                      {weatherInfo.temperature}°C / 湿度 {weatherInfo.humidity}%
+                    </Typography>
+                  </Box>
+                </MuiTooltip>
+                <Button 
+                  onClick={fetchWeatherData} 
+                  color="primary" 
+                  size="small" 
+                  disabled={weatherLoading}
+                  sx={{ ml: 1, minWidth: 0, p: 1 }}
+                >
+                  <RefreshIcon fontSize="small" />
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+      
+      {/* 上部カード：売上、客数、在庫アラート - 2番目に配置 */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={3} sx={{ p: 2, textAlign: 'center', height: '100%' }}>
+            <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+              本日の売上
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <TrendingUpIcon color="primary" sx={{ mr: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                ¥{(todaySales || 0).toLocaleString()}
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={3} sx={{ p: 2, textAlign: 'center', height: '100%' }}>
+            <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+              本日の客数
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <PeopleIcon color="primary" sx={{ mr: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                {customerCount}人
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={3} sx={{ p: 2, textAlign: 'center', height: '100%' }}>
+            <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+              予約状況
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <EventAvailableIcon color="primary" sx={{ mr: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                {reservationStats.pendingReservations}件/{reservationStats.totalGuests}名
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper elevation={3} sx={{ p: 2, textAlign: 'center', height: '100%' }}>
+            <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+              在庫アラート
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <WarningIcon color="warning" sx={{ mr: 1 }} />
+              <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                {inventoryAlerts.length}件
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+      
+      {/* 売上・予実分析セクション */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12}>
+          <Paper elevation={3}>
+            <Box sx={{
+              position: 'relative',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              p: 2,
+              borderTopLeftRadius: (theme) => theme.shape.borderRadius,
+              borderTopRightRadius: (theme) => theme.shape.borderRadius
+            }}>
+              <Typography variant="h6" fontWeight="medium">
+                売上・予実分析
+              </Typography>
+              <Button
+                variant="contained"
+                size="small"
+                endIcon={<ArrowForwardIcon />}
+                component="a"
+                href="/finance"
+                sx={{
+                  position: 'absolute',
+                  right: 24,
+                  top: 16,
+                  bgcolor: 'white',
+                  color: 'primary.main',
+                  fontWeight: 'bold',
+                  boxShadow: 2,
+                  '&:hover': { bgcolor: 'grey.100' }
+                }}
+              >
+                財務レポートを見る
+              </Button>
+            </Box>
+            <Divider sx={{ mb: 0, bgcolor: 'primary.light', opacity: 0.2 }} />
+
+            {/* 売上カードセクション */}
+            <Box sx={{ p: 3 }}>
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                {/* 本日の売上 */}
+                <Grid item xs={12} md={4}>
+                  <Card elevation={2} sx={{ minHeight: 220, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: 3, bgcolor: 'rgba(173,216,230,0.08)' }}>
+                    <CardHeader
+                      avatar={<TodayIcon color="primary" sx={{ fontSize: 32 }} />}
+                      title={<Typography variant="subtitle2" color="textSecondary">本日の売上</Typography>}
+                      sx={{ pb: 0 }}
+                    />
+                    <CardContent sx={{ pt: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                        <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                          ¥{budgetActual?.today?.actual.toLocaleString() || 0}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+                          予算: ¥{budgetActual?.today?.budget.toLocaleString() || 0}
+                        </Typography>
+                      </Box>
+                      {/* ゲージと達成率 */}
+                      {budgetActual?.today && (
+                        <Box sx={{ mt: 2, mb: 1, position: 'relative' }}>
+                          <Box sx={{ width: '100%', bgcolor: 'grey.200', borderRadius: 5, height: 16 }}>
+                            <Box
+                              sx={{
+                                width: `${Math.min(Math.round((budgetActual.today.actual / budgetActual.today.budget) * 100), 100)}%`,
+                                bgcolor: Math.round((budgetActual.today.actual / budgetActual.today.budget) * 100) >= 100 ? 'success.main' :
+                                  Math.round((budgetActual.today.actual / budgetActual.today.budget) * 100) >= 70 ? 'warning.main' : 'error.main',
+                                borderRadius: 5,
+                                height: 16
+                              }}
+                            />
+                          </Box>
+                      <Typography variant="body2" color="textSecondary">
+                        本日目標達成率:
+                      </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="body2" fontWeight="medium" sx={{ color: previousYearData.today.percentChange > 0 ? 'success.main' : previousYearData.today.percentChange < 0 ? 'error.main' : 'text.primary' }}>
+                          {previousYearData.today.percentChange > 0 ? '+' : ''}{previousYearData.today.percentChange}%
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+                          (¥{previousYearData.today.sales.toLocaleString()})
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                    <Box sx={{ p: 2 }}>
+                      <Box sx={{ height: 80, mt: 1 }}>
+                        <Line 
+                          options={{
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { x: { display: false }, y: { display: false } },
+                            elements: { point: { radius: 0 } },
+                            maintainAspectRatio: false
+                          }}
+                          data={{
+                            labels: ['00:00', '06:00', '12:00', '18:00', '23:59'],
+                            datasets: [{
+                              data: budgetActual?.today?.hourlyData || [0, 0, 0, 0, 0],
+                              borderColor: theme.palette.primary.main,
+                              backgroundColor: 'rgba(53, 162, 235, 0.3)',
+                              fill: true,
+                              tension: 0.4
+                            }]
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </Card>
+                </Grid>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Paper elevation={2} sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(255, 182, 193, 0.1)' }}>
+                    <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                      当月累計売上
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Box>
+                        <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: theme.palette.secondary.main }}>
+                          ¥{budgetActual?.month?.actual.toLocaleString() || 0}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          予算: ¥{budgetActual?.month?.budget.toLocaleString() || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {budgetActual?.month && (
+                          <Typography 
+                            variant="h6" 
+                            component="div"
+                            sx={{ 
+                              color: budgetActual.month.actual >= budgetActual.month.budget ? 'success.main' : 'error.main',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            {budgetActual.month.actual >= budgetActual.month.budget ? (
+                              <>
+                                <ArrowUpwardIcon fontSize="small" />
+                                {Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100) - 100}%
+                              </>
+                            ) : (
+                              <>
+                                <ArrowDownwardIcon fontSize="small" />
+                                {Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100) - 100}%
+                              </>
+                            )}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                    
+                    {/* 前年同月比較 */}
+                    {previousYearData?.month && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, mb: 2 }}>
+                        <Typography variant="body2" color="textSecondary" sx={{ mr: 1 }}>
+                          前年同月比:
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {previousYearData.month.percentChange > 0 ? (
+                            <ArrowUpwardIcon fontSize="small" sx={{ color: 'success.main' }} />
+                          ) : (
+                            <ArrowDownwardIcon fontSize="small" sx={{ color: 'error.main' }} />
+                          )}
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: previousYearData.month.percentChange > 0 ? 'success.main' : 'error.main',
+                              ml: 0.5
+                            }}
+                          >
+                            {previousYearData.month.percentChange > 0 ? '+' : ''}
+                            {previousYearData.month.percentChange}%
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+                          (¥{previousYearData.month.sales.toLocaleString()})
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* ノルマ達成状況 - 当月の達成状況 */}
+                    {budgetActual?.month && (
+                      <Box sx={{ mt: 1, mb: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                          <Typography variant="body2" color="textSecondary">
+                            当月目標達成率:
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100)}%
+                          </Typography>
+                        </Box>
+                        <Box sx={{ width: '100%', bgcolor: 'grey.200', borderRadius: 5, height: 10 }}>
+                          <Box 
+                            sx={{
+                              width: `${Math.min(Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100), 100)}%`,
+                              bgcolor: Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100) >= 100 ? 'success.main' : 
+                                     Math.round((budgetActual.month.actual / budgetActual.month.budget) * 100) >= 70 ? 'warning.main' : 'error.main',
+                              borderRadius: 5,
+                              height: 10
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                    )}
+                    
+                    <Box sx={{ height: 80, mt: 1 }}>
+                      <Line 
+                        options={{
+                          responsive: true,
+                          plugins: { legend: { display: false } },
+                          scales: { x: { display: false }, y: { display: false } },
+                          elements: { point: { radius: 0 } },
+                          maintainAspectRatio: false
+                        }}
+                        data={{
+                          labels: budgetActual?.month?.dailyLabels || Array(30).fill(''),
+                          datasets: [{
+                            data: budgetActual?.month?.dailyData || Array(30).fill(0),
+                            borderColor: theme.palette.secondary.main,
+                            backgroundColor: 'rgba(255, 99, 132, 0.3)',
+                            fill: true,
+                            tension: 0.4
+                          }]
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                </Grid>
+
+                {/* 年間累計売上 */}
+                <Grid item xs={12} md={4}>
+                  <Paper elevation={2} sx={{ p: 2, borderRadius: 2, bgcolor: 'rgba(144, 238, 144, 0.1)' }}>
+                    <Typography variant="subtitle1" color="textSecondary" gutterBottom>
+                      年間累計売上
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Box>
+                        <Typography variant="h4" component="div" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                          ¥{budgetActual?.year?.actual.toLocaleString() || 0}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          予算: ¥{budgetActual?.year?.budget.toLocaleString() || 0}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {budgetActual?.year && (
+                          <Typography 
+                            variant="h6" 
+                            component="div"
+                            sx={{ 
+                              color: budgetActual.year.actual >= budgetActual.year.budget ? 'success.main' : 'error.main',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            {budgetActual.year.actual >= budgetActual.year.budget ? (
+                              <>
+                                <ArrowUpwardIcon fontSize="small" />
+                                {Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100) - 100}%
+                              </>
+                            ) : (
+                              <>
+                                <ArrowDownwardIcon fontSize="small" />
+                                {Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100) - 100}%
+                              </>
+                            )}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                    
+                    {/* 前年同時点比較 */}
+                    {previousYearData?.year && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, mb: 2 }}>
+                        <Typography variant="body2" color="textSecondary" sx={{ mr: 1 }}>
+                          前年同時点比:
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {previousYearData.year.percentChange > 0 ? (
+                            <ArrowUpwardIcon fontSize="small" sx={{ color: 'success.main' }} />
+                          ) : (
+                            <ArrowDownwardIcon fontSize="small" sx={{ color: 'error.main' }} />
+                          )}
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: previousYearData.year.percentChange > 0 ? 'success.main' : 'error.main',
+                              ml: 0.5
+                            }}
+                          >
+                            {previousYearData.year.percentChange > 0 ? '+' : ''}
+                            {previousYearData.year.percentChange}%
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+                          (¥{previousYearData.year.sales.toLocaleString()})
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* ノルマ達成状況 - 年間目標達成状況 */}
+                    {budgetActual?.year && (
+                      <Box sx={{ mt: 1, mb: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                          <Typography variant="body2" color="textSecondary">
+                            年間目標達成率:
+                          </Typography>
+                          <Typography variant="body2" fontWeight="medium">
+                            {Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100)}%
+                          </Typography>
+                        </Box>
+                        <Box sx={{ width: '100%', bgcolor: 'grey.200', borderRadius: 5, height: 10 }}>
+                          <Box 
+                            sx={{
+                              width: `${Math.min(Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100), 100)}%`,
+                              bgcolor: Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100) >= 100 ? 'success.main' : 
+                                     Math.round((budgetActual.year.actual / budgetActual.year.budget) * 100) >= 70 ? 'warning.main' : 'error.main',
+                              borderRadius: 5,
+                              height: 10
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                    )}
+                    
+                    <Box sx={{ height: 80, mt: 1 }}>
+                      <Line 
+                        options={{
+                          responsive: true,
+                          plugins: { legend: { display: false } },
+                          scales: { x: { display: false }, y: { display: false } },
+                          elements: { point: { radius: 0 } },
+                          maintainAspectRatio: false
+                        }}
+                        data={{
+                          labels: budgetActual?.year?.monthlyLabels || ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                          datasets: [{
+                            data: budgetActual?.year?.monthlyData || Array(12).fill(0),
+                            borderColor: 'rgb(76, 175, 80)',
+                            backgroundColor: 'rgba(76, 175, 80, 0.3)',
+                            fill: true,
+                            tension: 0.4
+                          }]
+                        }}
+                      />
+                    </Box>
+                  </Paper>
+                </Grid>
+                
+                {/* カテゴリ別の予算実績比較 */}
+                <Grid item xs={12}>
+                  <Paper elevation={3} sx={{ p: 2, mt: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>カテゴリ別予算実績</Typography>
+                    <TableContainer sx={{ mt: 1 }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: 'grey.100' }}>
+                          <TableRow>
+                            <TableCell>カテゴリ</TableCell>
+                            <TableCell align="right">予算</TableCell>
+                            <TableCell align="right">実績</TableCell>
+                            <TableCell align="right">達成率</TableCell>
+                            <TableCell align="right">差異</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {budgetActual?.categories?.map((category) => {
+                            const diff = category.actual - category.budget;
+                            const achievementRate = Math.round((category.actual / category.budget) * 100);
+                            const diffPercent = Math.round((category.actual / category.budget * 100) - 100);
+                            return (
+                              <TableRow key={category.name} sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                                <TableCell>{category.name}</TableCell>
+                                <TableCell align="right">¥{category.budget.toLocaleString()}</TableCell>
+                                <TableCell align="right">¥{category.actual.toLocaleString()}</TableCell>
+                                <TableCell align="right">
+                                  <Chip 
+                                    label={`${achievementRate}%`} 
+                                    size="small" 
+                                    color={achievementRate >= 100 ? "success" : achievementRate >= 80 ? "warning" : "error"}
+                                    sx={{ minWidth: 60 }}
+                                  />
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                    {diff > 0 ? <ArrowUpwardIcon fontSize="small" sx={{ color: 'success.main' }} /> : 
+                                      diff < 0 ? <ArrowDownwardIcon fontSize="small" sx={{ color: 'error.main' }} /> : 
+                                      <RemoveIcon fontSize="small" color="disabled" />}
+                                    <Typography 
+                                      variant="body2" 
+                                      sx={{ 
+                                        ml: 0.5,
+                                        color: diff > 0 ? 'success.main' : diff < 0 ? 'error.main' : 'text.secondary'
+                                      }}
+                                    >
+                                      {diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            x: {
+                              stacked: false,
+                              grid: {
+                                display: false
+                              }
+                            },
+                            y: {
+                              stacked: false,
+                              grid: {
+                                display: false
+                              }
+                            }
+                          },
+                          plugins: {
+                            legend: {
+                              position: 'top',
+                            },
+                            tooltip: {
+                              callbacks: {
+                                label: function(context) {
+                                  let label = context.dataset.label || '';
+                                  if (label) {
+                                    label += ': ';
+                                  }
+                                  if (context.raw !== null) {
+                                    label += new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(context.raw);
+                                  }
+                                  return label;
+                                }
+                              }
+                            }
+                          },
+                        }} 
+                        data={{
+                          labels: budgetActual?.categories?.map(category => category.name) || [],
+                          datasets: [
+                            {
+                              label: '予算',
+                              data: budgetActual?.categories?.map(category => category.budget) || [],
+                              backgroundColor: 'rgba(53, 162, 235, 0.8)',
+                              borderColor: 'rgb(53, 162, 235)',
+                              borderWidth: 1
+                            },
+                            {
+                              label: '実績',
+                              data: budgetActual?.categories?.map(category => category.actual) || [],
+                              backgroundColor: 'rgba(255, 99, 132, 0.8)',
+                              borderColor: 'rgb(255, 99, 132)',
+                              borderWidth: 1
+                            }
+                          ]
+                        }}
+                      />
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Grid>
+      
+      {/* 予約情報の詳細 - 予実分析の後に配置 */}
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h6" fontWeight="medium">
+          本日の予約状況
+        </Typography>
+      </Box>
+      <Box sx={{ mb: 2 }}>
+        <Button 
+          variant="outlined" 
+          size="small" 
+          endIcon={<ArrowForwardIcon />}
+          component="a"
+          href="/reservations"
+        >
+          予約管理へ
+        </Button>
+      </Box>
+
+      {/* 予約情報の詳細 Grid */}
+      <Grid container spacing={2} sx={{ mb: 4 }}> 
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={12} md={8}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={6} lg={3}>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        本日の予約総数
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <PeopleIcon color="primary" sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="h6">
+                          {reservationStats.totalReservations}件
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6} md={6} lg={3}>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        今後の予約
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <AccessTimeIcon color="info" sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="h6">
+                          {reservationStats.pendingReservations}件
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6} md={6} lg={3}>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        予約人数合計
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <GroupIcon color="primary" sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="h6">
+                          {reservationStats.totalGuests}名
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={6} md={6} lg={3}>
+                    <Box sx={{ p: 1 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        ピーク時間帯
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                        <TimerIcon color="secondary" sx={{ mr: 1, fontSize: 20 }} />
+                        <Typography variant="h6">
+                          {reservationStats.peakHour}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
+                <Box sx={{ 
+                  pl: { xs: 0, md: 2 },
+                  pt: { xs: 2, md: 0 },
+                  borderLeft: { xs: 'none', md: '1px solid #e0e0e0' },
+                  height: '100%'
+                }}>
+                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                    時間帯別予約数
+                  </Typography>
+                  <Box sx={{ mt: 1 }}>
+                    {Object.entries(reservationStats.reservationsByHour || {}).map(([hour, count]) => (
+                      <Box key={hour} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <Chip 
+                          label={`${hour}:00`} 
+                          size="small" 
+                          color="primary" 
+                          variant="outlined" 
+                          sx={{ minWidth: 60, mr: 2 }}
+                        />
+                        <Box sx={{ 
+                          width: `${Math.min(count * 20, 100)}%`, 
+                          height: 8, 
+                          bgcolor: 'primary.main', 
+                          borderRadius: 1 
+                        }} />
+                        <Typography variant="body2" sx={{ ml: 1 }}>
+                          {count}件
+                        </Typography>
+                      </Box>
+                    ))}
+                    {(!reservationStats.reservationsByHour || Object.keys(reservationStats.reservationsByHour).length === 0) && (
+                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                        本日の予約はありません
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+      </Grid>
+      
+      {/* シフトとタスク情報 */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+              <CalendarIcon color="primary" sx={{ mr: 1 }} />
+              本日のシフト
+            </Typography>
+            <List>
+              {todayShifts.map((shift) => (
+                <Box key={shift.id}>
+                  <ListItem>
+                    <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
+                      <PersonIcon />
+                    </Avatar>
+                    <ListItemText
+                      primary={shift.staffName}
+                      secondary={
+                        <Typography variant="body2" color="text.secondary">
+                          {shift.position} | {shift.time}
+                        </Typography>
+                      }
+                    />
+                  </ListItem>
+                  <Divider component="li" />
+                </Box>
+              ))}
+            </List>
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button variant="outlined" size="small" href="/shifts">
+                シフト管理へ
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+              <TaskIcon color="primary" sx={{ mr: 1 }} />
+              本日のタスク
+            </Typography>
+            <List>
+              {todayTasks.map((task) => (
+                <Box key={task.id}>
+                  <ListItem
+                    secondaryAction={
+                      <Chip 
+                        label={getStatusText(task.status)} 
+                        color={getStatusColor(task.status)}
+                        size="small"
+                      />
+                    }
+                  >
+                    <ListItemText
+                      primary={task.title}
+                      secondary={`担当: ${task.assignedTo}`}
+                    />
+                  </ListItem>
+                  <Divider component="li" />
+                </Box>
+              ))}
+            </List>
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button variant="outlined" size="small" href="/tasks">
+                タスク管理へ
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* 在庫アラート */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 2, height: '100%' }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+              <InventoryIcon color="warning" sx={{ mr: 1 }} />
+              在庫アラート
+            </Typography>
+            <List>
+              {inventoryAlerts.map((alert) => (
+                <Box key={alert.id}>
+                  <ListItem
+                    secondaryAction={
+                      <Chip 
+                        label={alert.quantity < alert.threshold ? '補充必要' : '在庫確認'} 
+                        color={alert.quantity < alert.threshold ? 'error' : 'warning'}
+                        size="small"
+                      />
+                    }
+                  >
+                    <ListItemText
+                      primary={alert.name}
+                      secondary={`在庫: ${alert.quantity} ${alert.unit} / 閾値: ${alert.threshold}`}
+                    />
+                  </ListItem>
+                  <Divider component="li" />
+                </Box>
+              ))}
+            </List>
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button variant="outlined" size="small" href="/inventory">
+                在庫管理へ
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Container>
+  );
+};
+
+export default Dashboard;

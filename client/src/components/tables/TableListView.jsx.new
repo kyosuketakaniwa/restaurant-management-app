@@ -1,0 +1,313 @@
+import React from 'react';
+import { 
+  Box, 
+  Grid, 
+  Card, 
+  CardContent, 
+  CardActions, 
+  Typography, 
+  Button, 
+  IconButton, 
+  Chip, 
+  Badge, 
+  Menu, 
+  MenuItem,
+  Divider,
+  Tooltip,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText
+} from '@mui/material';
+import { 
+  MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Event as EventIcon,
+  AccessTime as AccessTimeIcon,
+  TableRestaurant as TableIcon,
+  People as PeopleIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  DataUsage as DataUsageIcon,
+  Today as TodayIcon,
+  ConfirmationNumber as ConfirmationNumberIcon,
+  Person as PersonIcon
+} from '@mui/icons-material';
+
+/**
+ * テーブルリストビュー
+ * @param {Array} tables - テーブルリスト
+ * @param {Array} activeOrders - アクティブな注文リスト
+ * @param {Array} reservedTables - 予約済みテーブル情報
+ * @param {Function} onView - 詳細ビュー表示時のコールバック
+ * @param {Function} onEdit - 編集時のコールバック
+ * @param {Function} onDelete - 削除時のコールバック
+ * @param {Function} onStatusChange - ステータス変更時のコールバック
+ * @param {Function} onReservation - 予約登録時のコールバック
+ * @param {Function} onStatistics - 統計情報表示時のコールバック
+ */
+const TableListView = ({ 
+  tables, 
+  activeOrders = [],
+  reservedTables = [], // 予約済みテーブル情報をデフォルト空配列で受け取る
+  onView, 
+  onEdit, 
+  onDelete,
+  onStatusChange,
+  onReservation,
+  onStatistics
+}) => {
+  const [menuAnchorEl, setMenuAnchorEl] = React.useState(null);
+  const [selectedTable, setSelectedTable] = React.useState(null);
+  
+  // メニューを開く
+  const handleMenuOpen = (event, table) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+    setSelectedTable(table);
+  };
+  
+  // メニューを閉じる
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+    setSelectedTable(null);
+  };
+  
+  // ステータスに基づいた色とラベルを取得
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'available':
+        return { color: 'success', label: '利用可能' };
+      case 'occupied':
+        return { color: 'error', label: '使用中' };
+      case 'reserved':
+        return { color: 'warning', label: '予約済み' };
+      case 'maintenance':
+        return { color: 'default', label: 'メンテナンス中' };
+      default:
+        return { color: 'primary', label: '不明' };
+    }
+  };
+  
+  // テーブルのアクティブな注文を取得
+  const getTableOrders = (tableId) => {
+    return activeOrders.filter(order => order.tableId === tableId);
+  };
+  
+  // テーブルの予約情報を取得
+  const getTableReservations = (tableId) => {
+    return reservedTables.filter(reservation => reservation.tableId === tableId);
+  };
+  
+  return (
+    <Box>
+      <Grid container spacing={2}>
+        {tables.map(table => {
+          const statusInfo = getStatusInfo(table.status);
+          const tableOrders = getTableOrders(table.id);
+          const tableReservations = getTableReservations(table.id);
+          
+          return (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={table.id}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderLeft: 5,
+                  borderColor: `${statusInfo.color}.main`
+                }}
+                onClick={() => onView(table)}
+              >
+                <CardContent sx={{ flexGrow: 1 }}>
+                  {/* ヘッダー: テーブル名とアクション */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="h6" component="div">
+                      {table.name}
+                    </Typography>
+                    <IconButton 
+                      size="small" 
+                      onClick={(e) => handleMenuOpen(e, table)}
+                      sx={{ ml: 1 }}
+                    >
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  
+                  {/* ステータスチップ */}
+                  <Chip 
+                    label={statusInfo.label}
+                    color={statusInfo.color}
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  
+                  <Divider sx={{ mb: 2 }} />
+                  
+                  {/* テーブル情報 */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <TableIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="body2">
+                      {table.section} セクション / {table.seats} 名席
+                    </Typography>
+                  </Box>
+                  
+                  {/* 予約情報表示セクション */}
+                  {table.isReserved && tableReservations.length > 0 && (
+                    <Box sx={{ mt: 2, mb: 1 }}>
+                      <Divider sx={{ mb: 1 }} />
+                      <Typography variant="subtitle2" color="primary" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <EventIcon fontSize="small" sx={{ mr: 0.5 }} /> 予約情報
+                      </Typography>
+                      
+                      {tableReservations.map((reservation, idx) => (
+                        <List key={idx} dense disablePadding>
+                          <ListItem disableGutters>
+                            <ListItemIcon sx={{ minWidth: 30 }}>
+                              <AccessTimeIcon fontSize="small" color="primary" />
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={`${reservation.time}`} 
+                              primaryTypographyProps={{ variant: 'body2' }}
+                            />
+                          </ListItem>
+                          
+                          <ListItem disableGutters>
+                            <ListItemIcon sx={{ minWidth: 30 }}>
+                              <PersonIcon fontSize="small" color="primary" />
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={`${reservation.customerName} (${reservation.people}名)`} 
+                              primaryTypographyProps={{ variant: 'body2' }}
+                            />
+                          </ListItem>
+                          
+                          <ListItem disableGutters>
+                            <ListItemIcon sx={{ minWidth: 30 }}>
+                              <ConfirmationNumberIcon fontSize="small" color="primary" />
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={reservation.status === 'confirmed' ? '予約確定' : '予約受付中'} 
+                              primaryTypographyProps={{ 
+                                variant: 'body2', 
+                                color: reservation.status === 'confirmed' ? 'success.main' : 'warning.main' 
+                              }}
+                            />
+                          </ListItem>
+                        </List>
+                      ))}
+                    </Box>
+                  )}
+                  
+                  {/* アクティブな注文情報 */}
+                  {tableOrders.length > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2" color="primary" sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <DataUsageIcon fontSize="small" sx={{ mr: 0.5 }} /> 現在の注文
+                      </Typography>
+                      <Badge badgeContent={tableOrders.length} color="primary" sx={{ display: 'block', mb: 1 }} />
+                      {tableOrders.map(order => (
+                        <Box 
+                          key={order.id} 
+                          sx={{ 
+                            p: 1, 
+                            bgcolor: 'action.hover', 
+                            borderRadius: 1, 
+                            mb: 1,
+                            fontSize: '0.75rem'
+                          }}
+                        >
+                          注文 #{order.id.substring(0, 6)} - {order.items.length}点
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </CardContent>
+                
+                <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
+                  <Button 
+                    size="small" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReservation(table);
+                    }}
+                    startIcon={<EventIcon />}
+                  >
+                    予約
+                  </Button>
+                </CardActions>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
+      
+      {/* テーブルアクションメニュー */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem 
+          onClick={() => {
+            onEdit(selectedTable);
+            handleMenuClose();
+          }}
+        >
+          <EditIcon fontSize="small" sx={{ mr: 1 }} />
+          編集
+        </MenuItem>
+        <MenuItem 
+          onClick={() => {
+            onDelete(selectedTable.id);
+            handleMenuClose();
+          }}
+        >
+          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
+          削除
+        </MenuItem>
+        <Divider />
+        <MenuItem 
+          onClick={() => {
+            onStatusChange(selectedTable.id, 'available');
+            handleMenuClose();
+          }}
+        >
+          <CheckCircleIcon fontSize="small" sx={{ mr: 1, color: 'success.main' }} />
+          利用可能に設定
+        </MenuItem>
+        <MenuItem 
+          onClick={() => {
+            onStatusChange(selectedTable.id, 'occupied');
+            handleMenuClose();
+          }}
+        >
+          <Cancel fontSize="small" sx={{ mr: 1, color: 'error.main' }} />
+          使用中に設定
+        </MenuItem>
+        <MenuItem 
+          onClick={() => {
+            onStatusChange(selectedTable.id, 'maintenance');
+            handleMenuClose();
+          }}
+        >
+          <TableIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+          メンテナンス中に設定
+        </MenuItem>
+        <Divider />
+        <MenuItem 
+          onClick={() => {
+            onStatistics && onStatistics(selectedTable);
+            handleMenuClose();
+          }}
+        >
+          <DataUsageIcon fontSize="small" sx={{ mr: 1, color: 'primary.main' }} />
+          利用統計
+        </MenuItem>
+      </Menu>
+    </Box>
+  );
+};
+
+export default TableListView;
