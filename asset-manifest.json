@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/restaurant-management-app/static/css/main.51b02e32.css",
+    "main.js": "/restaurant-management-app/static/js/main.466321cd.js",
+    "index.html": "/restaurant-management-app/index.html",
+    "main.51b02e32.css.map": "/restaurant-management-app/static/css/main.51b02e32.css.map",
+    "main.466321cd.js.map": "/restaurant-management-app/static/js/main.466321cd.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.51b02e32.css",
+    "static/js/main.466321cd.js"
+  ]
+}
